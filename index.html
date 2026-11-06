@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+<title>AI와 해킨토시, 스위치 게임의 맥 구동: 무엇이 확인됐을까</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&amp;family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #f2f4f8;
+  --card: #ffffff;
+  --ink: #151922;
+  --sub: #546074;
+  --line: #dce2ec;
+  --accent: #0c6987;
+  --acc-bg: #e3f2f7;
+  --evid: #b06500;
+  --evid-bg: #fff2db;
+  --ok: #187943;
+  --ok-bg: #e1f5ea;
+  --bad: #c42b23;
+  --bad-bg: #fde5e3;
+  --code: #eef2f7;
+  --f-body: "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+  --f-mono: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1217;
+    --card: #171c24;
+    --ink: #ecf0f6;
+    --sub: #9ba6b8;
+    --line: #29313e;
+    --accent: #5bc6e8;
+    --acc-bg: #132d37;
+    --evid: #f5b855;
+    --evid-bg: #34250c;
+    --ok: #5fd68f;
+    --ok-bg: #122e1d;
+    --bad: #ff8279;
+    --bad-bg: #3c1816;
+    --code: #202631;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1217;
+  --card: #171c24;
+  --ink: #ecf0f6;
+  --sub: #9ba6b8;
+  --line: #29313e;
+  --accent: #5bc6e8;
+  --acc-bg: #132d37;
+  --evid: #f5b855;
+  --evid-bg: #34250c;
+  --ok: #5fd68f;
+  --ok-bg: #122e1d;
+  --bad: #ff8279;
+  --bad-bg: #3c1816;
+  --code: #202631;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 84px;
+}
+
+/* 상단 바 */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 20px;
+}
+.topbar-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.brand {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.nav-links { display: flex; gap: 4px; flex-wrap: wrap; }
+.nav-links a {
+  text-decoration: none;
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+.nav-links a:hover { background: var(--acc-bg); color: var(--accent); }
+.ctrl-btns { display: flex; gap: 6px; }
+.btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.active { background: var(--accent); color: var(--card); border-color: var(--accent); }
+
+/* 본문 레이아웃 */
+.wrap {
+  max-width: 1040px;
+  margin: 26px auto;
+  padding: 0 16px;
+  display: grid;
+  gap: 26px;
+}
+body.deck-mode { overflow: hidden; padding-bottom: 0; }
+body.deck-mode .wrap {
+  height: calc(100vh - 116px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.deck-mode .chapter {
+  display: none;
+  width: 100%;
+  max-height: calc(100vh - 138px);
+  overflow-y: auto;
+}
+body.deck-mode .chapter.active { display: block; animation: popIn .22s ease; }
+@keyframes popIn { from { opacity: .4; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.chapter {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 36px 40px;
+  scroll-margin-top: 72px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.03);
+}
+@media (max-width: 720px) {
+  .chapter { padding: 24px 18px; }
+}
+.step-badge {
+  display: inline-block;
+  font-family: var(--f-mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--acc-bg);
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+h1 {
+  font-size: clamp(25px, 3.8vw, 37px);
+  line-height: 1.26;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+  text-wrap: balance;
+}
+h2 {
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  margin-bottom: 12px;
+  text-wrap: balance;
+}
+h3 { font-size: 18px; margin-bottom: 6px; }
+p.lead {
+  font-size: 17.5px;
+  color: var(--sub);
+  margin-bottom: 20px;
+}
+
+/* 벨로키 캐릭터 가이드 말풍선 */
+.veloki-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--evid-bg);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 18px;
+  margin: 18px 0;
+}
+.veloki-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #151922;
+  object-fit: contain;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.veloki-speech {
+  font-size: 15.5px;
+  line-height: 1.55;
+}
+.veloki-speech strong {
+  color: var(--evid);
+  display: block;
+  font-size: 13.5px;
+  margin-bottom: 2px;
+}
+
+/* 이미지/스크린샷 카드 그리드 */
+.shot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 18px 0;
+}
+@media (max-width: 720px) {
+  .shot-grid { grid-template-columns: 1fr; }
+}
+.shot-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.shot-img-wrap {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: #0b0e14;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.shot-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .25s ease;
+}
+.shot-img-wrap:hover img { transform: scale(1.03); }
+.zoom-hint {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 99px;
+  pointer-events: none;
+}
+.shot-body {
+  padding: 14px 16px;
+  flex: 1;
+}
+.shot-body h4 {
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+.shot-body p {
+  font-size: 14.2px;
+  color: var(--sub);
+  line-height: 1.55;
+}
+
+/* 그리드 & 박스 */
+.grid { display: grid; gap: 14px; margin-top: 16px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 780px) {
+  .g2, .g3 { grid-template-columns: 1fr; }
+}
+.box {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  background: var(--bg);
+}
+.box p { font-size: 15px; color: var(--sub); margin-top: 6px; }
+.box.acc { background: var(--acc-bg); border-color: transparent; }
+.box.evid { background: var(--evid-bg); border-color: transparent; }
+.box.okb { background: var(--ok-bg); border-color: transparent; }
+.box.badb { background: var(--bad-bg); border-color: transparent; }
+
+.tag {
+  display: inline-block;
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 99px;
+  margin-right: 6px;
+  margin-bottom: 6px;
+}
+.t-acc { background: var(--acc-bg); color: var(--accent); }
+.t-evid { background: var(--evid-bg); color: var(--evid); }
+.t-ok { background: var(--ok-bg); color: var(--ok); }
+.t-bad { background: var(--bad-bg); color: var(--bad); }
+
+/* 쉬운 비유 비교 박스 */
+.analogy-vs {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: stretch;
+  margin: 18px 0;
+}
+@media (max-width: 720px) {
+  .analogy-vs { grid-template-columns: 1fr; }
+}
+.vs-badge {
+  align-self: center;
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--sub);
+  text-align: center;
+  padding: 6px;
+}
+
+/* 인터랙티브 퀴즈 */
+.quiz-box {
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-top: 20px;
+  background: var(--card);
+}
+.choice-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.choice-btn {
+  flex: 1;
+  min-width: 200px;
+  padding: 12px 15px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.choice-btn:hover { border-color: var(--accent); }
+.choice-btn.selected { background: var(--accent); color: var(--card); border-color: var(--accent); }
+.reveal-box {
+  display: none;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--acc-bg);
+  font-size: 15px;
+}
+.reveal-box.show { display: block; animation: popIn .2s ease; }
+
+code {
+  font-family: var(--f-mono);
+  background: var(--code);
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 0.9em;
+}
+.src-note {
+  margin-top: 18px;
+  font-family: var(--f-mono);
+  font-size: 12.5px;
+  color: var(--sub);
+}
+.src-note a { color: var(--accent); }
+
+/* 이미지 확대 모달(Lightbox) */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.86);
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: zoom-out;
+}
+.lightbox.open { display: flex; animation: popIn .18s ease; }
+.lightbox-inner {
+  max-width: 960px;
+  max-height: 90vh;
+  text-align: center;
+}
+.lightbox-inner img {
+  max-width: 100%;
+  max-height: 80vh;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.lightbox-cap {
+  color: #f1f5f9;
+  margin-top: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* 하단 바 */
+.bottom-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 54px;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  z-index: 40;
+}
+.bottom-bar .status {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  color: var(--sub);
+}
+.case-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start} .case-grid .evidence {margin:10px 0} @media(max-width:720px){.case-grid{grid-template-columns:1fr}} .mobile-menu summary {display:none} .mobile-menu {display:contents} @media(max-width:720px){.topbar{padding:8px 12px}.topbar-inner{flex-wrap:nowrap;gap:5px}.brand{font-size:11px;line-height:1.25;flex:1;min-width:0}.mobile-menu{display:block;position:relative}.mobile-menu summary{display:block;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;white-space:nowrap}.mobile-menu summary::-webkit-details-marker{display:none}.mobile-menu .nav-links{position:absolute;right:0;top:40px;min-width:190px;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;box-shadow:0 8px 24px #0004}.mobile-menu:not([open]) .nav-links{display:none}.ctrl-btns{gap:4px}.ctrl-btns .btn{font-size:11px;padding:6px 7px;white-space:nowrap}.chapter{scroll-margin-top:70px}.bottom-bar{padding:0 10px}.bottom-bar .status{font-size:10px} body.deck-mode .wrap{height:calc(100dvh - 110px)} body.deck-mode .chapter{max-height:calc(100dvh - 130px)}} .evidence {margin:26px 0;} .evidence img {display:block;width:100%;height:auto;border-radius:14px;border:1px solid var(--line);cursor:zoom-in} .evidence figcaption {font-size:14px;line-height:1.6;color:var(--sub);margin-top:9px} .chapter p,.chapter li {line-height:1.85} .chapter a {overflow-wrap:anywhere} .source-list li {margin-bottom:9px} </style>
+</head>
+<body>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand">🦖 TECHTAEK STORY · AI와 해킨토시</div>
+<details class="mobile-menu"><summary>목차</summary><nav aria-label="목차" class="nav-links">
+<a href="#ch1">1. 게임 구동 사례</a>
+<a href="#ch2">2. 작동 원리</a>
+<a href="#ch3">3. AI의 역할</a>
+<a href="#ch4">4. 원문 속 사례</a>
+<a href="#ch5">5. 위험과 출처</a>
+</nav></details>
+<div class="ctrl-btns">
+<button class="btn" id="modeBtn" onclick="toggleMode()" type="button">슬라이드 모드로 보기</button>
+<button class="btn" id="themeBtn" onclick="toggleTheme()" type="button">테마 전환</button>
+</div>
+</div>
+</header>
+<main class="wrap" id="storyWrap">
+<section class="chapter active" data-title="1. 게임 구동 사례" id="ch1">
+<span class="step-badge">ACT 01 · GAME ON APPLE SILICON</span>
+<h1>스위치 게임이 맥에서 돌아간다고? <br/>AI와 해킨토시 열풍, 확인된 사실부터</h1>
+<p>스위치 게임을 애플 기기에서 실행하려는 프로젝트와 비애플 기기에 macOS를 올리는 해킨토시가 다시 관심을 받고 있습니다. 두 실험은 흥미롭지만 같은 기술은 아닙니다. 2026년 11월 6일 확인한 프로젝트 문서와 원문을 기준으로 구분했습니다.</p>
+<h2>몬스터 헌터 라이즈, 60FPS라는 숫자의 조건</h2>
+<p>nxnative의 <a href="https://github.com/seedds/nxnative">프로젝트</a>는 스위치 게임의 실행 파일을 변환하고, 운영체제 기능과 그래픽 호출을 호환하는 방식으로 애플 기기에서 실행하는 실험입니다. <a href="https://nxnative.net/games/monster-hunter-rise">비공식 게임 정보 페이지</a>는 몬스터 헌터 라이즈 <strong>업데이트 16.0.2에서 60FPS</strong>를 보고합니다. 페이지 스스로 비공식이라고 밝힙니다.</p>
+<p>이것은 해당 페이지의 보고이지, 모든 기기·장면에서 고정 60FPS라는 뜻은 아닙니다. 우리는 게임을 직접 실행하거나 프레임을 측정하지 않았습니다. 기존 글의 스위치 2 신작별 프레임, 발열·메모리 수치와 전 구간 완벽 구동 주장은 개별 원본을 확인하지 못해 뺐습니다.</p>
+<figure class="evidence"><img alt="비공식 게임 정보 페이지의 몬스터 헌터 라이즈 구동 화면과 16.0.2 정보" onclick="openLightbox(this.src,this.alt)" src="assets/monster-zoom.png"/><figcaption>출처 화면: <a href="https://nxnative.net/games/monster-hunter-rise">비공식 nxnative 게임 정보 페이지</a>, 2026-11-06 확인. 페이지가 애플 기기에서의 구동 장면이라고 설명한 이미지와 버전 정보. 스틸 화면만으로 기기 모델이나 FPS는 확인되지 않습니다.</figcaption></figure>
+</section>
+<section class="chapter" data-title="2. 작동 원리" id="ch2">
+<span class="step-badge">ACT 02 · THREE DIFFERENT PATHS</span><h2>예전 해킨토시와 지금: 무슨 일이 달라졌나</h2>
+<p>인텔 맥과 일반 PC가 같은 x86 계열 CPU를 쓰던 시절, 사람들은 일반 PC에서 macOS를 부팅하려고 부트로더와 하드웨어별 드라이버를 조합했습니다. CPU가 같아도 펌웨어와 그래픽·와이파이 같은 장치는 달랐기 때문입니다. 켜지는 것과 매일 안정적으로 쓰는 것은 또 다른 숙제였죠.</p>
+<p>애플은 <a href="https://www.apple.com/newsroom/2020/11/apple-unleashes-m1/">2020년 M1을 발표</a>하며 맥의 CPU 전환을 시작했습니다. 기존 x86 PC에 새 맥 OS를 올리는 길은 더 복잡해졌지만, ARM 기기가 넓게 보급되면서 다른 가능성도 주목받습니다. <strong>다만 해킨토시, 스위치 게임 호환, 가상화는 서로 다른 프로젝트</strong>이고 같은 기술이 부활했다고 묶을 수는 없습니다.</p>
+<p>아이폰 3가 나왔을 무렵, iOS를 탈옥하고 맥도 만져봤던 기억이 있습니다. 정확히 어느 기종이었는지, 맥에서 해킨토시를 직접 설치해 썼는지는 기억이 흐릿합니다. 그래서 당시의 세부 경험을 단정할 수는 없지만, 이번 소식은 기기가 원래 허용한 범위 너머를 궁금해하던 그 시절을 떠올리게 합니다. 예전과 달라진 건 AI라는 조수가 생겼다는 점이고, 여전히 남은 질문은 결과가 얼마나 안정적으로 작동하는지입니다.</p><h2>CPU가 같아도 나머지 퍼즐이 남는다</h2>
+<p>스위치와 Apple Silicon 기기는 ARM 계열 CPU를 사용하지만, <strong>CPU 명령어가 비슷하다고 앱이 저절로 실행되지는 않습니다.</strong> 운영체제 인터페이스, 그래픽 API, 메모리와 기기 기능을 연결하는 작업이 필요합니다. 옷만 갈아입히면 끝나는 파티는 아니었네요.</p>
+<figure class="evidence"><img alt="벨로키가 CPU와 그래픽, 운영체제 호환성 퍼즐을 살펴보는 설명 삽화" onclick="openLightbox(this.src,this.alt)" src="assets/veloki-compatibility.png"/><figcaption>AI로 제작한 개념 삽화. 실제 기기나 실행 화면의 증거가 아닙니다.</figcaption></figure>
+<ul><li><strong>nxnative:</strong> 프로젝트는 실행 코드 재작성, Horizon 호환 기능 및 NVN→Metal 그래픽 변환을 설명합니다. <a href="https://github.com/seedds/nxnative">프로젝트 문서</a></li><li><strong>QEMU/KVM 가상화:</strong> QEMU가 가상 머신과 장치를 모델링하고, Linux에서 KVM을 가속기로 사용할 수 있습니다. 모든 QEMU 실행에 KVM이나 GPU 패스스루가 필요한 것은 아닙니다. <a href="https://www.qemu.org/docs/master/system/introduction.html">QEMU 공식 문서</a></li><li><strong>실제 하드웨어 부팅:</strong> 비애플 PC에서 macOS를 직접 부팅하는 해킨토시는 가상 머신과 구분해야 합니다. 기기별 부트로더와 드라이버 문제가 따릅니다.</li></ul>
+<figure class="evidence"><img alt="QEMU 공식 시스템 에뮬레이션 소개 화면" onclick="openLightbox(this.src,this.alt)" src="assets/qemu-zoom.png"/><figcaption>출처 화면: <a href="https://www.qemu.org/docs/master/system/introduction.html">QEMU 공식 문서</a>, 2026-11-06 확인. 가상 머신과 가속기 설명의 출처입니다.</figcaption></figure>
+</section>
+<section class="chapter" data-title="3. AI의 역할" id="ch3"><span class="step-badge">ACT 03 · AI AS AN ASSISTANT</span><h2>AI는 유능한 조수일 수 있다. 증거까지 대신 만들지는 못한다</h2>
+<p><a href="https://www.naut.ca/blog/2026/11/05/the-hackintosh-reborn-with-ai/">Yoon의 원문</a>에서 저자는 기존 가이드로 ThinkPad T490에 macOS 26을 설치한 뒤, Xcode의 AI 코딩 도구를 활용해 하루 안에 iOS 앱을 만들었다고 말합니다. 이는 <strong>저자의 앱 제작 경험</strong>입니다. 본문은 네 가지 드라이버가 AI만으로 개발됐다는 증거나 개발 시간을 제시하지 않습니다.</p>
+<p>역공학에서 AI는 분석 단서와 코드 초안을 제안할 수 있지만, 결과가 맞는지는 실행·비교·사람의 검증이 필요합니다. AI가 모든 드라이버를 며칠 만에 뚫었다거나 최근 성과의 유일한 원인이라는 기존 표현은 확인할 수 없어 삭제했습니다.</p>
+<figure class="evidence"><img alt="The Hackintosh Reborn with AI 원문 제목과 첫 부분 화면" onclick="openLightbox(this.src,this.alt)" src="assets/naut-zoom.png"/><figcaption>원문 화면: <a href="https://www.naut.ca/blog/2026/11/05/the-hackintosh-reborn-with-ai/">Yoon’s Blog, 2026-11-05</a>. 아래에서 설명하는 내용은 저자의 주장과 사례 소개입니다.</figcaption></figure>
+</section>
+<section class="chapter" data-title="4. 원문 속 사례" id="ch4"><span class="step-badge">ACT 04 · WHAT THE SOURCE SAYS</span><h2>원문이 보여준 네 장의 사진, 어디까지 말할 수 있을까?</h2>
+<p>원문은 Snapdragon 노트북의 macOS 27, RK3588 보드의 macOS 27.2 베타, Switch OLED의 iOS 17, NVIDIA 50 시리즈 지원 사례를 이미지와 함께 소개합니다. 이들은 <strong>원문 저자가 소개한 커뮤니티 사례</strong>이며 저자 자신의 T490 테스트 결과가 아닙니다.</p>
+<div class="case-grid">
+<figure class="evidence"><img alt="Snapintosh 게시물에 나온 노트북 사진" onclick="openLightbox(this.src,this.alt)" src="assets/img1_snapdragon.jpg"/><figcaption>Snapintosh: Reddit 게시물 화면. 노트북에 macOS 화면이 보이는 사례. 출처: <a href="https://www.naut.ca/blog/2026/11/05/the-hackintosh-reborn-with-ai/">Yoon의 원문에 수록된 이미지</a>.</figcaption></figure>
+<figure class="evidence"><img alt="RK3588에서 macOS를 구동했다는 게시물과 영상 화면" onclick="openLightbox(this.src,this.alt)" src="assets/img2_rk3588.png"/><figcaption>RK3588: 게시자의 구동 및 드라이버 관련 주장과 영상 화면. 세부 기능은 독립 검증하지 못했다. 출처: <a href="https://www.naut.ca/blog/2026/11/05/the-hackintosh-reborn-with-ai/">Yoon의 원문에 수록된 이미지</a>.</figcaption></figure>
+<figure class="evidence"><img alt="iOS 17 구동이라고 소개된 Nintendo Switch OLED 사진" onclick="openLightbox(this.src,this.alt)" src="assets/img3_switch_ios17.jpg"/><figcaption>Switch OLED: iOS 17 구동이라고 소개된 Reddit 게시물의 사진. 사진만으로 내부 작동 방식은 확인할 수 없다. 출처: <a href="https://www.naut.ca/blog/2026/11/05/the-hackintosh-reborn-with-ai/">Yoon의 원문에 수록된 이미지</a>.</figcaption></figure>
+<figure class="evidence"><img alt="NVIDIA 드라이버 게시물과 macOS 시스템 정보 화면" onclick="openLightbox(this.src,this.alt)" src="assets/img4_nvidia50.jpeg"/><figcaption>NVIDIA 드라이버: 게시물에 나온 macOS 시스템 정보 화면. 전체 가속이나 안정성을 이 한 장으로 보증하지 않는다. 출처: <a href="https://www.naut.ca/blog/2026/11/05/the-hackintosh-reborn-with-ai/">Yoon의 원문에 수록된 이미지</a>.</figcaption></figure>
+</div>
+<p>사진만으로 장치의 모든 부품이나 가속 상태, 장시간 안정성, VM 사용 여부를 확정하기 어렵습니다. 기존의 Mali Metal 연산 성공, 정확한 칩 모델과 파티션 이식, 스위치의 사파리 실제 작동 같은 세부 주장은 각 최초 제작자의 독립적인 근거를 확인하지 못해 삭제했습니다. 원문 이미지는 <a href="https://www.naut.ca/blog/2026/11/05/the-hackintosh-reborn-with-ai/">원문에서 직접 확인</a>할 수 있습니다.</p>
+</section>
+<section class="chapter" data-title="5. 위험과 출처" id="ch5"><span class="step-badge">ACT 05 · LIMITS &amp; SOURCES</span><h2>재미있는 데모와 내 메인 장비는 별개다</h2>
+<p>실험용 부트로더와 드라이버는 부팅 실패나 데이터 손실을 일으킬 수 있습니다. <a href="https://github.com/nullmoth/nvidia-macos-driver/blob/main/docs/TROUBLESHOOTING.md">nullmoth 문제 해결 문서</a>도 Ryzen 기기의 설치 중 멈춤과 복구 방법을 다룹니다. 다만 기존에 적었던 특정 AM5 BIOS의 영구 벽돌 사고와 그 원인은 이번에 입증하지 못해 삭제했습니다.</p>
+<p>상용 게임 파일과 복호화 키, 운영체제 사용에는 저작권·기술적 보호조치와 라이선스 문제가 얽힙니다. 허용 범위는 행위와 관할에 따라 달라지므로 일률적으로 합법·불법을 단정하지 않습니다. 이 글은 구동 방법이나 파일 확보를 권유하지 않고, 기술과 공개된 사례를 살펴봅니다.</p>
+<h2>그래서 우리는 뭘 배울까?</h2>
+<p><strong>호환성은 CPU 하나가 아니라 경계의 문제입니다.</strong> 업무에서도 오래된 사내 프로그램을 새 환경으로 옮길 때는 화면이 켜졌는지만 보지 말고, 파일 입출력·인증·주변 장치·장애 복구까지 목록으로 확인해야 합니다. 데모 성공은 출발선이지 운영 승인 도장은 아닙니다.</p>
+<p><strong>AI의 속도와 검증의 속도는 별개입니다.</strong> AI가 코드를 제안하면 작은 테스트부터 실행하고, 실패 조건과 복구 방법을 기록해야 합니다. 나중에 같은 질문을 던졌을 때 재현할 수 있어야 지식이 됩니다.</p>
+<h2>우리가 놓치기 쉬운 질문</h2><ul><li>부팅이나 한 장면의 성공 이후 업데이트·절전·저장·보안까지 실제로 유지되는가?</li><li>기기와 게임 버전, 테스트 시간, 실패 사례가 공개되어 있는가? 성공한 사람만 보이는 건 아닌가?</li><li>AI가 한 일과 기존 커뮤니티의 축적, 사람이 검증한 부분을 구분했는가?</li><li>흥미로운 실험의 비용과 권리 문제를 감안해도 내가 해결하려는 문제에 쓸 가치가 있는가?</li></ul>
+<p>내 판단: 이 변화에서 배울 것은 ‘뭐든 뚫린다’가 아니라, <strong>옮기고 싶은 기능의 경계를 나누고 검증할 줄 아는 능력</strong>입니다. 오래된 장비를 살릴 가능성은 커졌지만, 결과를 유지할 책임과 선택은 여전히 사람에게 있습니다.</p>
+<h2>확인한 출처</h2><ul class="source-list"><li><a href="https://www.naut.ca/blog/2026/11/05/the-hackintosh-reborn-with-ai/">Yoon’s Blog: The Hackintosh Reborn… with AI</a> — 원문과 저자의 경험</li><li><a href="https://github.com/seedds/nxnative">seedds/nxnative</a> — 변환 방식과 프로젝트 설명</li><li><a href="https://nxnative.net/games/monster-hunter-rise">비공식 nxnative 게임 정보</a> — 몬헌 16.0.2와 60FPS 보고</li><li><a href="https://www.apple.com/newsroom/2020/11/apple-unleashes-m1/">Apple M1 발표 (2020)</a> — 전환의 시점</li><li><a href="https://www.qemu.org/docs/master/system/introduction.html">QEMU 공식 문서</a> — 가상화·에뮬레이션 설명</li><li><a href="https://github.com/nullmoth/nvidia-macos-driver/blob/main/docs/TROUBLESHOOTING.md">nullmoth 문제 해결 문서</a> — 알려진 문제와 복구</li></ul>
+<p>확인일: 2026년 11월 6일. 직접 게임이나 해킨토시를 실행한 테스트가 아닌 공개 자료 검토입니다. 자료 화면은 출처 확인용으로 수록했으며 실제 게임 플레이를 검증하는 사진은 아닙니다.</p><p>글과 벨로키 삽화: CC BY-NC-ND 4.0. 인용 화면·상표·게임 이미지의 권리는 해당 권리자에게 있습니다.</p></section></main>
+<!-- 이미지 확대 모달 -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+<div class="lightbox-inner">
+<img alt="확대 이미지" id="lightboxImg" src=""/>
+<div class="lightbox-cap" id="lightboxCap"></div>
+</div>
+</div>
+<footer class="bottom-bar">
+<div class="status" id="pageStatus">스크롤 스토리 모드 · 사진을 클릭하면 크게 볼 수 있습니다</div>
+<div class="ctrl-btns">
+<button class="btn" id="prevBtn" onclick="stepSlide(-1)" style="display:none;" type="button">← 이전 장</button>
+<button class="btn" id="nextBtn" onclick="stepSlide(1)" style="display:none;" type="button">다음 장 →</button>
+</div>
+</footer>
+<script>
+let isDeck = false;
+let curSlide = 0;
+const chapters = Array.from(document.querySelectorAll('.chapter'));
+const menuQuery = matchMedia('(max-width: 720px)');
+function syncMenu() { document.querySelector('.mobile-menu').open = !menuQuery.matches; }
+menuQuery.addEventListener('change', syncMenu); syncMenu();
+document.querySelectorAll('.nav-links a').forEach(link => link.addEventListener('click', () => {
+  const menu = document.querySelector('.mobile-menu'); if (menuQuery.matches) menu.open = false;
+  if (isDeck) { const target = chapters.findIndex(ch => '#' + ch.id === link.getAttribute('href')); if (target >= 0) {curSlide = target; updateSlideView();} }
+}));
+
+function openLightbox(src, cap) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightboxCap').textContent = cap;
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+function toggleMode() {
+  isDeck = !isDeck;
+  document.body.classList.toggle('deck-mode', isDeck);
+  document.getElementById('modeBtn').textContent = isDeck ? '스크롤 모드로 보기' : '슬라이드 모드로 보기';
+  document.getElementById('modeBtn').classList.toggle('active', isDeck);
+  document.getElementById('prevBtn').style.display = isDeck ? 'inline-block' : 'none';
+  document.getElementById('nextBtn').style.display = isDeck ? 'inline-block' : 'none';
+  updateSlideView();
+}
+
+function stepSlide(delta) {
+  if (!isDeck) return;
+  curSlide = Math.max(0, Math.min(chapters.length - 1, curSlide + delta));
+  updateSlideView();
+}
+
+function updateSlideView() {
+  if (!isDeck) {
+    document.getElementById('pageStatus').textContent = '스크롤 스토리 모드 · 사진을 클릭하면 크게 볼 수 있습니다';
+    return;
+  }
+  chapters.forEach((ch, idx) => ch.classList.toggle('active', idx === curSlide));
+  const title = chapters[curSlide].getAttribute('data-title') || '';
+  document.getElementById('pageStatus').textContent = `슬라이드 ${curSlide + 1} / ${chapters.length} · ${title} (←/→ 키 이동)`;
+}
+
+function toggleTheme() {
+  const root = document.documentElement;
+  const cur = root.getAttribute('data-theme');
+  root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeLightbox();
+  if (!isDeck) return;
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') stepSlide(1);
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') stepSlide(-1);
+});
+</script>
+</body>
+</html>
